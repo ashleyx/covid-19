@@ -9,6 +9,8 @@ sapply( c("raster","magrittr","dplyr","ggplot2","jsonlite","rayshader"),
 
 
 gadm_india_states <- getData("GADM", country = "India" , level = 1)
+  # gadm_india_states <- rgdal::readOGR("IND_adm/IND_adm1.dbf") 
+
 gadm_india_districts <- getData("GADM", country = "India" , level = 2)
 
 data_india_raw <- read_json("https://api.covid19india.org/raw_data.json",simplifyVector = TRUE)$raw_data %>% 

@@ -61,6 +61,24 @@ data_india_raw %>%
 data_india_state %>% ggplot(aes(x= date , y = confirmed, group = detectedstate))+geom_line() +
   facet_wrap(~detectedstate)
 
-data_india_state %>% ggplot(aes(x= date , y = confirmed,color = detectedstate, group = detectedstate))+geom_line() +
-  gghighlight(max(confirmed) > 50) + theme_bw()
-  
+data_india_state %>% group_by(detectedstate) %>%
+  filter(max(confirmed) > 200, date > "2020-03-15") %>%  
+  ggplot(aes(x= date , y = confirmed,color = detectedstate, group = detectedstate))+
+  geom_line(alpha = 0.6) +
+  gghighlight(max_highlight = 20) + theme_bw() 
+
+data_india_state %>% group_by(detectedstate) %>% 
+  mutate(total = cumsum(confirmed),
+         percent_increase = round(100*confirmed/total, digits = 3)) %>% 
+  ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
+  facet_wrap(~detectedstate)
+
+data_india_state %>% group_by(date) %>% 
+  summarize(daily = sum(confirmed)) %>% 
+  mutate(total = cumsum(daily),
+         percent_increase = round(100*daily/lag(total), digits = 0)) %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
+  geom_text(aes(x= date, y = percent_increase + 10, label = percent_increase)) +
+  theme_bw() + ggtitle("% increase over previous day")
+
