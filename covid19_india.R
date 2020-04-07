@@ -6,9 +6,11 @@ sapply( c("magrittr","dplyr","readr","reshape2","skimr","ggplot2","gghighlight",
           x
         },USE.NAMES = FALSE)
 
-  
+
 # data import -------------------------------------------------------------
 
+
+# Data updates throughout the day. The total per day tally only refects post midnight
 data_india_raw <- read_json("https://api.covid19india.org/raw_data.json",simplifyVector = TRUE)$raw_data %>% 
   mutate(dateannounced = as.Date(dateannounced, "%d/%m/%y")) %>% 
   na.omit()
@@ -34,6 +36,7 @@ data_india_raw %>% skim()
 # plotting ----------------------------------------------------------------
 
 
+# daily new cases ---------------------------------------------------------
 data_india_raw %>% group_by(dateannounced) %>% 
   summarise(count = length(dateannounced)) %>% 
   ggplot(aes(x=dateannounced, y = count))+
@@ -44,6 +47,7 @@ data_india_raw %>% group_by(dateannounced) %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   ggtitle("New Cases:India")
 
+# Total cases ---------------------------------------------------------
 data_india_raw %>% 
   group_by(dateannounced,currentstatus) %>% 
   summarise(new_cases = length(dateannounced) ) %>% 
@@ -58,21 +62,25 @@ data_india_raw %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   ggtitle("Total Cases:India")
 
+# State-wise confirmed cases ---------------------------------------------------------
 data_india_state %>% ggplot(aes(x= date , y = confirmed, group = detectedstate))+geom_line() +
   facet_wrap(~detectedstate)
 
+# trens of cumulative for top states ---------------------------------------------------------
 data_india_state %>% group_by(detectedstate) %>%
   filter(max(confirmed) > 200, date > "2020-03-15") %>%  
   ggplot(aes(x= date , y = confirmed,color = detectedstate, group = detectedstate))+
   geom_line(alpha = 0.6) +
   gghighlight(max_highlight = 20) + theme_bw() 
 
+# state-wise percent new cases ---------------------------------------------------------
 data_india_state %>% group_by(detectedstate) %>% 
   mutate(total = cumsum(confirmed),
          percent_increase = round(100*confirmed/total, digits = 3)) %>% 
   ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
   facet_wrap(~detectedstate)
 
+# National percent new cases ---------------------------------------------------------
 data_india_state %>% group_by(date) %>% 
   summarize(daily = sum(confirmed)) %>% 
   mutate(total = cumsum(daily),
