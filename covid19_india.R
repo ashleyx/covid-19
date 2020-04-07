@@ -9,8 +9,7 @@ sapply( c("magrittr","dplyr","readr","reshape2","skimr","ggplot2","gghighlight",
 
 # data import -------------------------------------------------------------
 
-
-# Data updates throughout the day. The total per day tally only refects post midnight
+# Data updates throughout the day. The total tally for current day only refects post midnight
 data_india_raw <- read_json("https://api.covid19india.org/raw_data.json",simplifyVector = TRUE)$raw_data %>% 
   mutate(dateannounced = as.Date(dateannounced, "%d/%m/%y")) %>% 
   na.omit()
@@ -30,8 +29,6 @@ data_india_state <- unique(data_india_raw$dateannounced) %>% lapply(function(d){
 }) %>%  Reduce(f = rbind)
 
 data_india_raw %>% skim()
-
-
 
 # plotting ----------------------------------------------------------------
 
