@@ -48,9 +48,11 @@ plot_country_total <- function(country, scale = NA, skim = TRUE){
     gghighlight(label_key = Count,use_direct_label = TRUE) +
     guides(colour = guide_legend("legend" ,override.aes = aes(label = "|")))+
     theme_bw() + 
-    scale_x_date(date_breaks = "1 day" , date_labels = "%d/%m/'%y")+
+    scale_x_date(date_breaks = "3 days" , date_labels = "%d/%m/'%y")+
     theme(axis.text.x = element_text(angle = 90, hjust = 1),) +
-    ggtitle(country, subtitle = "Total Cases")
+    labs(title = country,
+         subtitle = "Total Cases",
+         caption = "Data: JHU CSSE github.com/CSSEGISandData/COVID-19")
   if(scale == "log"){
     return(plot + scale_y_log10())
   }else{
@@ -72,10 +74,13 @@ plot_country_new <- function(country, skim = TRUE){
       mutate(new_cases = Count - lag(Count, default = 0, order_by = Date)) %>%
     ggplot(aes(x= Date , y = new_cases)) + 
     geom_histogram(stat = "identity") + 
-    geom_text(aes(label = new_cases, y= (10 + new_cases)))+
+    geom_text(aes(label = new_cases, y= (max(new_cases)/10 + new_cases)))+
     theme_bw() +
-    scale_x_date(date_breaks = "1 day" , date_labels = "%d/%m/'%y")+
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle(country, subtitle = "New Cases")
+    scale_x_date(date_breaks = "3 days" , date_labels = "%d/%m/'%y")+
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+    labs(title = country,
+         subtitle = "New Cases",
+         caption = "Data: JHU CSSE github.com/CSSEGISandData/COVID-19")
     return(plot)
   
 }

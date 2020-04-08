@@ -30,7 +30,7 @@ data_india_state <- unique(data_india_raw$dateannounced) %>% lapply(function(d){
 
 data_india_raw %>% skim()
 
-# plotting ----------------------------------------------------------------
+# plots ----------------------------------------------------------------
 
 
 # daily new cases ---------------------------------------------------------
@@ -42,33 +42,19 @@ data_india_raw %>% group_by(dateannounced) %>%
   theme_bw() +
   scale_x_date(date_breaks = "1 day" , date_labels = "%d/%m/'%y")+
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  ggtitle("New Cases:India")
-
-# Total cases ---------------------------------------------------------
-data_india_raw %>% 
-  group_by(dateannounced,currentstatus) %>% 
-  summarise(new_cases = length(dateannounced) ) %>% 
-  group_by(currentstatus) %>% 
-  mutate(total = cumsum(new_cases)) %>%
-  ggplot(aes(x=dateannounced, y = total, color = currentstatus))+
-  geom_line(aes(group = currentstatus))+
-  gghighlight(label_key = total,use_direct_label = TRUE) +
-  guides(colour = guide_legend("legend" ,override.aes = aes(label = "|")))+
-  theme_bw() +
-  scale_x_date(date_breaks = "1 day" , date_labels = "%d/%m/'%y")+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  ggtitle("Total Cases:India")
+  labs(title = "New Cases:India",
+       caption = "Data: covid19india.org API")
 
 # State-wise confirmed cases ---------------------------------------------------------
 data_india_state %>% ggplot(aes(x= date , y = confirmed, group = detectedstate))+geom_line() +
   facet_wrap(~detectedstate)
 
-# trens of cumulative for top states ---------------------------------------------------------
+# trends of cumulative for top states ---------------------------------------------------------
 data_india_state %>% group_by(detectedstate) %>%
   filter(max(confirmed) > 200, date > "2020-03-15") %>%  
   ggplot(aes(x= date , y = confirmed,color = detectedstate, group = detectedstate))+
   geom_line(alpha = 0.6) +
-  gghighlight(max_highlight = 20) + theme_bw() 
+  gghighlight(max_highlight = 20) + theme_bw()
 
 # state-wise percent new cases ---------------------------------------------------------
 data_india_state %>% group_by(detectedstate) %>% 
@@ -85,5 +71,7 @@ data_india_state %>% group_by(date) %>%
   filter(date > "2020-03-01") %>% 
   ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
   geom_text(aes(x= date, y = percent_increase + 10, label = percent_increase)) +
-  theme_bw() + ggtitle("% increase over previous day")
+  theme_bw() +
+  labs(title = "% increase over previous day",
+       caption = "Data: covid19india.org API")
 
