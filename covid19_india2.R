@@ -1,9 +1,14 @@
+# library imports ----------------------------------------------------------
+
 options(stringsAsFactors = FALSE)
 sapply( c("magrittr","dplyr","readr","reshape2","skimr","ggplot2","gghighlight","jsonlite"),
         function(x){
           suppressPackageStartupMessages(library(x, character.only = TRUE))
           x
         },USE.NAMES = FALSE)
+
+
+# data import -------------------------------------------------------------
 
 data_india <- read_json("https://api.covid19india.org/states_daily.json",simplifyVector = TRUE)$states_daily %>% 
   melt(id.vars = c("status","date")) %>% 
@@ -19,6 +24,10 @@ state_mapping <- data.frame(abbrv = strsplit("an,ap,ar,as,br,ch,ct,dd,dn,dl,ga,g
 
 data_india$state %<>% as.character() %>% 
   sapply(function(i) state_mapping$full[state_mapping$abbrv ==i])
+
+
+# plots ----------------------------------------------------------------
+
 
 data_india %>% group_by(date,status) %>% 
   summarise(count = sum(count)) %>% 
@@ -62,3 +71,5 @@ data_india %>% filter(status == "Confirmed") %>%
   labs(title = "State-wise Cumulative Confirmed Cases",
        caption = "Data: covid19india.org API") 
 
+
+  

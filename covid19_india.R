@@ -1,6 +1,6 @@
 # library imports ----------------------------------------------------------
 
-sapply( c("magrittr","dplyr","readr","reshape2","skimr","ggplot2","gghighlight","jsonlite"),
+sapply( c("magrittr","dplyr","readr","reshape2","skimr","ggplot2","gghighlight","jsonlite","ggtext"),
         function(x){
           suppressPackageStartupMessages(library(x, character.only = TRUE))
           x
@@ -51,7 +51,7 @@ data_india_state %>% ggplot(aes(x= date , y = confirmed, group = detectedstate))
 
 # trends of cumulative for top states ---------------------------------------------------------
 data_india_state %>% group_by(detectedstate) %>%
-  filter(max(confirmed) > 200, date > "2020-03-15") %>%  
+  filter(max(confirmed) > 200, date > "2020-04-01") %>%  
   ggplot(aes(x= date , y = confirmed,color = detectedstate, group = detectedstate))+
   geom_line(alpha = 0.6) +
   gghighlight(max_highlight = 20) + theme_bw()
@@ -67,11 +67,33 @@ data_india_state %>% group_by(detectedstate) %>%
 data_india_state %>% group_by(date) %>% 
   summarize(daily = sum(confirmed)) %>% 
   mutate(total = cumsum(daily),
-         percent_increase = round(100*daily/lag(total), digits = 0)) %>% 
-  filter(date > "2020-03-01") %>% 
+         percent_increase = round(100*daily/lag(total), digits = 0),
+         doubling_time = round(log(x = 2,base = (1+percent_increase/100)), digits = 1)) %>% 
+  filter(date > "2020-03-15") %>% 
   ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
-  geom_text(aes(x= date, y = percent_increase + 10, label = percent_increase)) +
-  theme_bw() +
-  labs(title = "% increase over previous day",
-       caption = "Data: covid19india.org API")
+  geom_text(aes(x= date, y = percent_increase + 4, label = paste0(percent_increase)), color = "#850c0c") +
+  geom_text(aes(x= date, y = percent_increase + 2, label = paste0("(",doubling_time,")")), color = "#30119e") +  theme_bw() +
+  labs(title = "<span style='color:#850c0c'>Percentage increase over previous day total (%)</span> ",
+       subtitle = "<span style='color:#30119e'>Effective Doubling Time (days)</span>",
+       caption = "Data: covid19india.org API") +
+  theme(plot.subtitle = element_markdown(),
+    plot.title = element_markdown())
 
+
+# National doubling time ---------------------------------------------------------
+data_india_state %>% group_by(date) %>% 
+  summarize(daily = sum(confirmed)) %>% 
+  mutate(total = cumsum(daily),
+         percent_increase = round(100*daily/lag(total), digits = 0),
+         doubling_time = round(log(x = 2,base = (1+percent_increase/100)), digits = 1)) %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(x= date , y = doubling_time)) + 
+  geom_path() +
+  gghighlight(label_key = doubling_time)+
+  annotate("rect", xmin = as.Date("2020-03-22"), xmax = as.Date("2020-04-16"), ymin = -Inf, ymax = Inf, 
+           alpha = .5)+
+  annotate("text",x = as.Date("2020-03-26"),y = 1 , label = "Start of Lockdown") +
+  theme_bw()+ scale_x_date(expand = c(0,0))+
+  labs(title = "<span style='color:#30119e'>Effective Doubling Time (days)</span>" ,
+       caption = "Data: covid19india.org API") +
+  theme(plot.title = element_markdown())
