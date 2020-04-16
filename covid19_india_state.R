@@ -28,7 +28,16 @@ data_india$state %<>% as.character() %>%
 
 # plots ----------------------------------------------------------------
 
+# Tally of latest day
+data_india %>% filter(status == "Confirmed") %>% 
+  group_by(date,state) %>% 
+  summarise(count = sum(count)) %>% 
+  group_by(state) %>% 
+  mutate(total = cumsum(count),
+         percent_increase = round(100*count/lag(total), digits = 0)) %>% 
+  group_by(state) %>% filter(date == max(date)) %>%  as.data.frame() %>% arrange(total)
 
+ # Total national cases; semilog plot
 data_india %>% group_by(date,status) %>% 
   summarise(count = sum(count)) %>% 
   group_by(status) %>% 
@@ -45,6 +54,7 @@ data_india %>% group_by(date,status) %>%
   labs(title = "Total Cases:India",
        caption = "Data: covid19india.org API")
 
+#factted state wise cumulative plot 
 data_india %>% group_by(date,status,state) %>% 
   summarise(count = sum(count)) %>% 
   group_by(status,state) %>% 
@@ -59,17 +69,47 @@ data_india %>% group_by(date,status,state) %>%
   labs(title = "State-wise Cumulative Cases",
        caption = "Data: covid19india.org API")
 
+# State-wise trend plot all
 data_india %>% filter(status == "Confirmed") %>% 
   group_by(date,state) %>% 
   summarise(count = sum(count)) %>% 
   group_by(state) %>% 
   mutate(total = cumsum(count)) %>% 
-  group_by(state) %>% filter(max(total) > 300) %>% 
+  # group_by(state) %>% filter(max(total) > 300) %>% 
   ggplot(aes(x= date , y = total,color = state, group = state))+
   geom_line(alpha = 0.6) +
-  gghighlight(max_highlight = 20) + theme_bw() +
+  theme_bw() +
   labs(title = "State-wise Cumulative Confirmed Cases",
        caption = "Data: covid19india.org API") 
 
+#State-wise trend plot ; state %in% c("Kerala", "Maharashtra", "Delhi", "Tamil Nadu", "Madhya Pradesh" , "Uttar Pradesh")
+data_india %>% filter(status == "Confirmed") %>% 
+  group_by(date,state) %>% 
+  summarise(count = sum(count)) %>% 
+  group_by(state) %>% 
+  mutate(total = cumsum(count)) %>% 
+  # group_by(state) %>% filter(max(total) > 300) %>% 
+  ggplot(aes(x= date , y = total,color = state, group = state))+
+  geom_line(alpha = 0.6) +
+  gghighlight(state %in% c("Kerala", "Maharashtra", "Delhi", "Tamil Nadu", "Madhya Pradesh" , "Uttar Pradesh"),
+              use_group_by = FALSE,
+              max_highlight = 20) +
+  theme_bw() +
+  labs(title = "State-wise Cumulative Confirmed Cases",
+       caption = "Data: covid19india.org API") 
 
-  
+#State-wise trend plot ; other states with counts above 300
+data_india %>% filter(status == "Confirmed") %>% 
+  group_by(date,state) %>% 
+  summarise(count = sum(count)) %>% 
+  group_by(state) %>% 
+  mutate(total = cumsum(count)) %>% 
+  group_by(state) %>% filter(max(total) > 300) %>%
+  ggplot(aes(x= date , y = total,color = state, group = state))+
+  geom_line(alpha = 0.6) +
+  gghighlight(!state %in% c("Kerala", "Maharashtra", "Delhi", "Tamil Nadu", "Madhya Pradesh" , "Uttar Pradesh"),
+              use_group_by = FALSE,
+              max_highlight = 20) +
+  theme_bw() +
+  labs(title = "State-wise Cumulative Confirmed Cases",
+       caption = "Data: covid19india.org API") 

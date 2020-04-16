@@ -32,8 +32,7 @@ data$rows$value %>%
   mutate(date = as.Date(report_time,"%Y-%m-%d"),
          new_tests = samples - lag(samples)) %>% 
   ggplot(aes(x=date, y = new_tests)) + geom_histogram(stat = "identity") +
-  geom_smooth(method = "lm", se = FALSE, formula = "y ~ x")+
+  # geom_smooth(method = "lm", se = FALSE, formula = "y ~ x")+
   labs(title = "Number of new tests done at each ICMR notification",
-       subtitle = "blue line is trend of increase in testing capacity",
        caption = "Data: ICMR notifications; maintained at github:datameet/covid19") +
   theme_bw()

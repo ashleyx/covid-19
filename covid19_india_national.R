@@ -60,7 +60,9 @@ data_india_state %>% group_by(detectedstate) %>%
 data_india_state %>% group_by(detectedstate) %>% 
   mutate(total = cumsum(confirmed),
          percent_increase = round(100*confirmed/total, digits = 3)) %>% 
+  group_by(detectedstate) %>% filter(max(total) > 500) %>% 
   ggplot(aes(x= date , y = percent_increase)) + geom_histogram(stat = "identity") +
+  theme_bw() + 
   facet_wrap(~detectedstate)
 
 # National percent new cases ---------------------------------------------------------
