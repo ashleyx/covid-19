@@ -91,7 +91,7 @@ plot_country_new <- function(country, skim = TRUE){
 
 unique(data$Country) %>% sort() %>% print()
 
-plot_country_total("India", scale = "log")
+plot_country_total("Oman", scale = "log")
 
 plot_country_new("India")
 

@@ -4,52 +4,39 @@ sapply( c("magrittr","dplyr","readr","reshape2","skimr",
           "ggplot2","gghighlight","jsonlite","tidyr","EpiEstim",
           "XML","ggtext","patchwork"),
         function(x){
+          if(!x %in% rownames(installed.packages())){
+            install.packages(x)
+          }
           suppressPackageStartupMessages(library(x, character.only = TRUE))
+          
           x
         },USE.NAMES = FALSE)
 
 
 #  -------------------------------------------------------------
-# RAW DATA IMPORT -------------------------------------------------------------
+# RAW DATA IMPORT ? -------------------------------------------------------------
 #  -------------------------------------------------------------
-
-data_india_raw <- read_json("https://api.covid19india.org/raw_data.json",simplifyVector = TRUE)$raw_data %>%
-  mutate(dateannounced = as.Date(dateannounced, "%d/%m/%y")) %>%
-  na.omit()
-
-population_data <-readHTMLTable(readLines("https://en.wikipedia.org/wiki/List_of_states_and_union_territories_of_India_by_population"))[[2]] %>%
-  {
-    population_data <- data.frame(.[-1,])
-    colnames(population_data) <- .[1,]
-    population_data %>%
-      transmute(state = `State or union territory` %>% gsub("\\[c\\]","",x = .),
-                pop = gsub("[^0-9]","",population_data$`Population(%)`) %>%   as.numeric())
-    
-  }
-
-data_states_all <- read_json("https://api.covid19india.org/states_daily.json",simplifyVector = TRUE)$states_daily 
-
-state_mapping <- data.frame(abbrv = strsplit("an,ap,ar,as,br,ch,ct,dd,dn,dl,ga,gj,hr,hp,jk,jh,ka,kl,la,ld,mp,mh,ml,mn,mz,nl,or,py,pb,rj,sk,tn,tg,tr,up,ut,wb", split = ",")[[1]],
-                            full = strsplit("Andaman and Nicobar Islands,Andhra Pradesh,Arunachal Pradesh,Assam,Bihar,Chandigarh,Chhattisgarh,Daman and Diu,Dadra and Nagar Haveli,Delhi,Goa,Gujarat,Haryana,Himachal Pradesh,Jammu and Kashmir,Jharkhand,Karnataka,Kerala,Lakshadweep,Ladakh,Madhya Pradesh,Maharashtra,Meghalaya,Manipur,Mizoram,Nagaland,Odisha,Puducherry,Punjab,Rajasthan,Sikkim,Tamil Nadu,Telangana,Tripura,Uttar Pradesh,Uttarakhand,West Bengal",split =",")[[1]])
+if(!all(c("data_india_raw","data_state") %in% ls())){
+  source("load_data.R")
+}
 
 dir.create(paste0("statewise_plot/",Sys.Date()),recursive = TRUE)
-
 date_start <- as.Date("2020-03-29")
 
-# in progress -------------------------------------------------------------
-# 
-data_states_all[,!colnames(data_states_all )%in% c("date","status")] %>% apply(2,function(i) sum(as.integer(i),na.rm = TRUE)) %>% 
-  { 
-    names(.)[. > 400] 
-  } %>% {
-    state_mapping$full[state_mapping$abbrv %in% .]
-  } %>% 
+#  -------------------------------------------------------------
+# Looping over all state with more than 400 cases -------------------------------------------------------------
+#  -------------------------------------------------------------
+
+data_state %>% filter(status == "Confirmed") %>%
+  group_by(state) %>% 
+  summarise(tally = sum(count)) %>% 
+  { .$state[.$tally > 400]} %>% 
   lapply(function(state){
     print(state)
     
     data_incidence_state <- data_india_raw %>% filter(detectedstate == state) %>%
       group_by(dateannounced) %>%
-      summarize(I = length(dateannounced)) %>%
+      summarize(I = sum(numcases, na.rm = TRUE)) %>%
       transmute(dates = dateannounced, I) %>%
       complete(dates = seq.Date(min(dates), max(dates), by="day")) %>%
       mutate(I = ifelse(is.na(I),0,I)) %>%
@@ -96,34 +83,30 @@ data_states_all[,!colnames(data_states_all )%in% c("date","status")] %>% apply(2
     
     # extrapolating -------------------------------------------------------------
     
-    data_state <- data_states_all %>%
-      melt(id.vars = c("status","date")) %>%
-      transmute(State = variable,
-                date = as.Date(date,"%d-%b-%y"),
-                status,
-                count = as.integer(value)) %>%
-      filter(State == state_mapping$abbrv[state_mapping$full == state]) %>% {
-        tmp <- .
-        tmp$count[is.na(tmp$count)] <- 0
-        tmp
-      } %>% 
-      group_by(status) %>% 
-      mutate(count = cumsum(count)) 
+    data_state_tmp <- data_state[data_state$state == state,] %>% group_by(status) %>% 
+      mutate(tally = cumsum(count))
     
     
-    avg_increase <- data_state %>% 
-      group_by(status) %>% 
-      mutate(percent = (count- lag(count))/lag(count)) %>% 
+    avg_increase <-  data_state_tmp %>% 
+      mutate(percent = count/lag(tally)) %>% 
       filter(date > Sys.Date() - 8) %>% group_by(status) %>% 
       summarise(percent = mean(percent))
     
+    if(avg_increase$percent[avg_increase$status == "Deceased"] < 0 |
+       is.infinite(avg_increase$percent[avg_increase$status == "Deceased"])){
+      avg_increase$percent[avg_increase$status == "Deceased"] <- 0
+    }
     if(avg_increase$percent[avg_increase$status == "Recovered"] > avg_increase$percent[avg_increase$status == "Confirmed"]){
       avg_increase$percent[avg_increase$status == "Recovered"] <- avg_increase$percent[avg_increase$status == "Confirmed"]
+    }else{
+      if(avg_increase$percent[avg_increase$status == "Recovered"] < 0){
+        avg_increase$percent[avg_increase$status == "Recovered"] <- 0
+      }
     }
     
     extrapolate <- function(status){
       sapply(0:6, function(i){
-        x <- data_state$count[(data_state$date == max(data_state$date)) & data_state$status == status ]
+        x <- data_state_tmp$tally[(data_state_tmp$date == max(data_state_tmp$date)) & data_state_tmp$status == status ]
         x * (1 + avg_increase$percent[avg_increase$status == status])^i
       })
     }
@@ -139,11 +122,11 @@ data_states_all[,!colnames(data_states_all )%in% c("date","status")] %>% apply(2
     data_extra %<>%
       melt(id.vars = "date") %>% transmute(date,
                                            status = variable, 
-                                           count = value)
+                                           tally = value)
     
-    plot_cumulative <- ggplot(data_state,aes(x= date, y = count , color = status)) +
+    plot_cumulative <- ggplot(data_state_tmp,aes(x= date, y = tally , color = status)) +
       geom_line() +
-      geom_line(data = data_extra, aes(x= date, y = count , color = status), linetype = 2)+
+      geom_line(data = data_extra, aes(x= date, y = tally , color = status), linetype = 2)+
       # scale_y_log10()+
       theme_bw()+
       labs(title = "Trajectory of Cumulative Counts",
