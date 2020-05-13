@@ -5,10 +5,10 @@ source("load_data.R")
 #  -------------------------------------------------------------
 
 # daily new cases ---------------------------------------------------------
-last_plot <-  data_india %>% 
-    melt(id.vars = "date")%>% 
+last_plot <-  data_india %>%
+    melt(id.vars = "date")%>%
     filter(variable == "dailyconfirmed",
-                       date > Sys.Date() - 30) %>% 
+                       date > Sys.Date() - 30) %>%
     ggplot(aes(x=date, y = value))+
     geom_histogram(stat="identity")+
     theme_bw() +
@@ -70,7 +70,7 @@ ggsave(filename = paste0("~/git/covid19_twitter_bot/plots/",Sys.Date(),"_daily_n
 
 
 # National percent new cases + doubling time ---------------------------------------------------------
-last_plot <- data_india %>% 
+last_plot <- data_india %>%
     mutate(percent_increase = round(100*dailyconfirmed/lag(totalconfirmed), digits = 1),
            doubling_time = round(log(x = 2,base = (1+percent_increase/100)), digits = 1)) %>%
     filter(date > Sys.Date()-21) %>%
@@ -95,9 +95,9 @@ ggsave(filename = paste0("~/git/covid19_twitter_bot/plots/",Sys.Date(),"_nationa
 
 # Plot on Testing Numbers -----------------------------------------------------------
 
-last_plot <- data_testing_national %>% 
+last_plot <- data_testing_national %>%
     ggplot(aes(x = date, y = new_tested)) + geom_histogram(stat = "identity") +
-    ggtitle("Daily Tested Total") + 
+    ggtitle("Daily Tested Total") +
     theme_bw() +
     theme(axis.title.x = element_blank(),
           axis.title.y = element_blank())
@@ -109,11 +109,11 @@ ggsave(filename = paste0("~/git/covid19_twitter_bot/plots/",Sys.Date(),"_ICMR_te
 
 
 # National Semi-log plot --------------------------------------------------
-last_plot <- data_india %>% 
-    melt(id.vars = "date") %>% 
-    filter(variable %in% c("totalconfirmed","totalrecovered","totaldeceased")) %>% 
-    filter(date > (Sys.Date()- 45)) %>% 
-    ggplot(aes(x= date, y = value , color = variable))+ 
+last_plot <- data_india %>%
+    melt(id.vars = "date") %>%
+    filter(variable %in% c("totalconfirmed","totalrecovered","totaldeceased")) %>%
+    filter(date > (Sys.Date()- 45)) %>%
+    ggplot(aes(x= date, y = value , color = variable))+
     geom_line()+
     gghighlight(label_key = value)+
     guides(colour = guide_legend("legend" ,override.aes = aes(label = "|")))+
@@ -142,14 +142,15 @@ ggsave(filename = paste0("~/git/covid19_twitter_bot/plots/",Sys.Date(),"_semilog
 
 # trajectory plot ---------------------------------------------------------
 
- data_india_state %>%
+last_plot <- data_india_state %>%
     group_by(detectedstate) %>%
-    summarise(date_at_100 = as.character(min(date[confirmed > 100])), na.rm = TRUE)  %>%
+    summarise(date_at_100 = as.character(min(date[confirmed > 100], na.rm = TRUE)))  %>%
     left_join(data_india_state, by = "detectedstate") %>%
     mutate( days = difftime(date, date_at_100, units = "days") %>% ceiling() %>% as.integer()) %>%
-    filter(days > 0 ) %>%
+    filter(days > 0 ,
+           !is.na(confirmed)) %>%
     ggplot(aes(x= days, y = confirmed)) + geom_line(aes(color = detectedstate))+
-    scale_y_log10(limits = c(100,20000), breaks = c(100,200,400,800,seq(2000,20000,2000))) +
+    scale_y_log10() +
     scale_x_continuous(expand = c(0,5)) +
     gghighlight(label_key = detectedstate)+ xlab("Days since 100th confirmed case") +
     labs(title = "Statewise Cumulative Confirmed Counts on semi-log scale",
@@ -165,10 +166,10 @@ ggsave(filename = paste0("~/git/covid19_twitter_bot/plots/",Sys.Date(),"_traject
 
 # trajectory of tests  ----------------------------------------------------
 
-last_plot <- data_testing_state %>% group_by(State) %>% 
+last_plot <- data_testing_state %>% group_by(State) %>%
     filter(min(Positive, na.rm = TRUE) > 100,
-           !is.na(Positive) & !is.na(Negative)) %>% 
-    ggplot(aes(x = Negative, y = Positive, color = State, group = State))+ 
+           !is.na(Positive) & !is.na(Negative)) %>%
+    ggplot(aes(x = Negative, y = Positive, color = State, group = State))+
     # geom_point() +
     geom_line() +
     gghighlight(label_key = State,max_highlight = 30,label_params = list(size = 3)) +
