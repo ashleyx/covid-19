@@ -91,10 +91,13 @@ plot_country_new <- function(country, skim = TRUE){
 
 unique(data$Country) %>% sort() %>% print()
 
-plot_country_total("Oman", scale = "log")
+country <- "Qatar"
 
-plot_country_new("India")
 
-data %>% filter(Country == "India" , Date == max(Date)) %>%
+plot_country_total(country, scale = "log")
+
+plot_country_new(country)
+
+data %>% filter(Country == country , Date == max(Date)) %>%
   group_by(Status, Date) %>% 
   summarise(Count = sum(Count))

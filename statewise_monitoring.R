@@ -6,7 +6,7 @@ sapply( c("magrittr","dplyr","reshape2","ggplot2","jsonlite","EpiEstim","patchwo
             install.packages(x)
           }
           suppressPackageStartupMessages(library(x, character.only = TRUE))
-
+          
           x
         },USE.NAMES = FALSE)
 
@@ -21,138 +21,130 @@ if(!all(c("data_india_raw","data_state") %in% ls())){
 dir.create(paste0("statewise_plot/",Sys.Date()),recursive = TRUE)
 date_start <- as.Date("2020-03-29")
 
-data_state %<>% group_by(status,state) %>%
-  mutate(tally = cumsum(count)) %>% filter(status == "Confirmed",
-                                           date > date_start)
-
-#  -------------------------------------------------------------
-#  Function to simulate  -------------------------------------------------------------
-#  -------------------------------------------------------------
-
-simulate_cases <- function(data_cumulative, date_predict, n_days,
-                           estimation_window = 3,iters = 1000, simplify = TRUE ){
-
-  # estimation of K = Rt/serial_interval --------------------------------------------------------
-
-  K <- (log(data_cumulative$tally[data_cumulative$date == (date_predict - 1)]) -
-          log(data_cumulative$tally[data_cumulative$date == (date_predict - estimation_window)]) ) /
-    (estimation_window - 1)
-
-  # Running simulations --------------------------------------------------------
-  bootstrap <- matrix(0,nrow = (n_days + 1), ncol = iters) -> bootstrap_new_cases
-  bootstrap[1,] <- data_cumulative$tally[data_cumulative$date == (date_predict - 1)]
-
-  for(i in 2:(n_days+1)){
-    expected <- bootstrap[i-1,] %>% sapply(function(j){
-      j*exp(K) - j
-    })
-
-    bootstrap_new_cases[i,] <- expected %>%
-      sapply(function(j){
-        rpois(1,j)
-      })
-    bootstrap[i,] <- bootstrap[i-1,] + bootstrap_new_cases[i,]
-  }
-
-  if(n_days == 1){
-    predicted <- data.frame(day = 1,
-                            quantile(bootstrap_new_cases[-1,],probs= c(0.025,0.5,0.975)) %>%  t) %>%
-      transmute(date = date_predict + day -1,
-                lower = X2.5. ,
-                mean = X50.,
-                upper = X97.5.)
-  }else{
-    predicted <- data.frame(day = 1:n_days,
-                            apply(bootstrap_new_cases[-1,],1,quantile,probs= c(0.025,0.5,0.975)) %>%  t) %>%
-      transmute(date = date_predict + day -1,
-                lower = X2.5. ,
-                mean = X50.,
-                upper = X97.5.)
-  }
-
-
-  if(simplify){
-    return(predicted)
-  }else{
-    return(bootstrap_new_cases)
-  }
-
-}
 #  -------------------------------------------------------------
 #  Looping over states -------------------------------------------------------------
 #  -------------------------------------------------------------
 
-data_state %>% group_by(state) %>%
+data_state %>% group_by(status,state) %>%
+  mutate(tally = cumsum(count)) %>% filter(status == "Confirmed",
+                                           date > date_start) %>% group_by(state) %>%
   summarise(n = max(tally)) %>% {
     .$state[.$n > 400]
   } %>% lapply(function(s){
-
+    
     print(s)
-    data <- data_state %>% filter(state == s)
-    #  -------------------------------------------------------------
-    #  Simulations -------------------------------------------------------------
-    #  -------------------------------------------------------------
-
-    predicted <- lapply((Sys.Date() - 1:7),function(d){
-      simulate_cases(data_cumulative = data,
-                     date_predict = d,
-                     n_days = 1)
-
-    }) %>%
-      Reduce(f = bind_rows , x = .) %>%
-      mutate(mean = NA) %>%
-      bind_rows(simulate_cases(data_cumulative = data,
-                               date_predict = Sys.Date(),
-                               n_days = 7))
+    data <- data_state %>% group_by(status,state) %>%
+      mutate(tally = cumsum(count)) %>% 
+      filter(status == "Confirmed",
+             date > date_start,
+             date < Sys.Date()) %>% 
+      filter(state == s) 
+    
     #  -------------------------------------------------------------
     #  Plotting -------------------------------------------------------------
     #  -------------------------------------------------------------
-
+    
     K <- (log(data$tally[data$date == (Sys.Date() - 1)]) -
             log(data$tally[data$date == (Sys.Date() - 7)]) ) /
       (7 - 1)
-
-
+    
+    
     p1 <- data %>%  filter(status == "Confirmed") %>%
       ggplot(aes(x= date)) +
-      geom_histogram(aes(y = count),stat = "identity", fill = "#999999")+
-      geom_histogram(data = predicted,aes(x = date, y = mean), fill = "#CCCCCC", stat = "identity")+
-      geom_errorbar(data = predicted, aes( ymin = lower, ymax = upper))+
+      geom_histogram(aes(y = count),stat = "identity")+
+      scale_x_date(expand = c(0,0)) +
       labs(title = s,
            subtitle = paste0("7 day average doubling time: ", round(log(2)/K, 1), " days"))+
+      ylab("daily new cases")+
       # geom_ribbon(data = predicted, aes( ymin = lower, ymax = upper), alpha = 0.3)+
       # geom_line(data = predicted,aes(x = date, y = mean), linetype = 2) +
-      theme_bw()
-
+      theme_bw()+
+      theme(axis.title.x = element_blank())
+    
     Rt <- data %>%
       dcast(data = . , formula = date ~ status, value.var = "count") %>%
       transmute(dates = date , I = Confirmed) %>%
+      filter(I > 0) %>% 
       estimate_R(incid = .,
                  method = "parametric_si",
                  config = make_config(list(mean_si = 5.12,std_si = 3)))
     p2 <- data.frame(date = Rt$dates[8:length(Rt$dates)],
-               R = Rt$R$`Mean(R)`) %>%
-      ggplot(aes(x= date , y = R))+ geom_line()+
-      geom_hline(yintercept = 1) +
+                     R = Rt$R$`Mean(R)`,
+                     R_max = Rt$R$`Quantile.0.975(R)`,
+                     R_min = Rt$R$`Quantile.0.025(R)`) %>%
+      ggplot(aes(x= date , y = R))+
+      geom_line()+
+      geom_hline(yintercept = 1, linetype = 3) +
+      geom_ribbon(aes(ymax = R_max , ymin = R_min),alpha = 0.4) +
+      scale_x_date(expand = c(0,0)) +
       ggtitle(label = "Effective Reproduction Number")+
       theme_bw() +
       theme(axis.title.x = element_blank())
-
+    
     p3 <- data_testing_state %>% filter(State == s) %>%
       mutate(new_tests = `Total Tested` - lag(`Total Tested`)) %>%
+      filter(`Updated On` > date_start) %>% 
       ggplot(aes(x= `Updated On` , y = new_tests))+
       geom_histogram(stat="identity")+
+      scale_x_date(expand = c(0,0)) +
       ggtitle(label = "New Tests done at each annoucement")+
       theme_bw()+
       theme(axis.title.x = element_blank(),
             axis.title.y = element_blank())
-
-    final_plot <- p1 + (p2/p3) +
-      plot_layout(widths = c(2,1))
+    
+    # case fatality ratios ----------------------------------------------------
+    
+    data_cfr <- data_state %>%
+      filter(state == s,
+             date < Sys.Date()) %>% 
+      group_by(status) %>% 
+      mutate(count = cumsum(count)) %>% 
+      filter(date > date_start)
+    
+    p4 <- data_cfr %>%
+      group_by(date) %>% 
+      summarise(cfr = 100*count[status == "Deceased"]/(count[status == "Recovered"] + count[status == "Deceased"])) %>% 
+      na.omit() %>% 
+      ggplot(aes(x = date, y = cfr)) + 
+      geom_line() +
+      geom_hline(yintercept = 0.75, linetype = 2)+
+      scale_x_date(expand = c(0,0)) +
+      labs(title = "Case Fatality Ratio %",
+          subtitle = "Dotted line is best true estimate of CFR",
+          caption = data_cfr %>% 
+            filter(date == max(date)) %>% {
+              cfr <- .$count[.$status == "Deceased"]/(.$count[.$status == "Recovered"] + .$count[.$status == "Deceased"])
+              cfr_true <- c(0.01,0.005)
+              round(cfr/cfr_true,digits = 1) %>% paste0(.,collapse = " - ") %>% 
+                paste0("Estimated undercount of cases: (",.,")x")
+            }) +
+      theme_bw()+
+      theme(axis.title.x = element_blank(),
+            axis.title.y = element_blank())
+    
+    p5 <- data_testing_state %>% filter(State == s) %>% 
+      filter(`Updated On` > date_start) %>% 
+      transmute(date = as.Date(`Updated On`),
+                positive = Positive,
+                negative = Negative) %>% na.omit() %>% 
+      mutate(new_positive = positive - lag(positive, default = 0),
+             new_negative = negative - lag(negative, default = 0),
+             percent_new_positive = 100 * new_positive/(new_positive + new_negative)) %>% 
+      ggplot(aes(x= date , y = percent_new_positive))+ 
+      geom_histogram(stat = "identity")+
+      ggtitle("Prcentage positive in new tests ") +
+      theme_bw() +
+      theme(axis.title.y = element_blank(),
+            axis.title.x = element_blank())
+    
+    
+    final_plot <- p1 /((p3/p5)|(p2/p4) + plot_layout(widths = c(1,1))) +
+      plot_layout(heights = c(1,2))
+    final_plot
     ggsave(paste0("statewise_plot/",Sys.Date(),"/",Sys.Date(),"_",gsub(" ","-",s),".png"),
            plot = final_plot,
-           width = 10 , height = 10)
-
+           width = 14 , height = 14)
+    
   }) %>%  invisible()
 
 

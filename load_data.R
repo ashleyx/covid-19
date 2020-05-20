@@ -50,27 +50,28 @@ data_state$state %<>% as.character() %>%
     sapply(function(i) state_mapping$full[state_mapping$abbrv ==i])
 
 cat("https://api.covid19india.org/states_daily.json\n")
-cat("All done")
 
 
 # Data updates throughout the day. The total tally for previous day only refects post midnight
 
 # This was the file used for most plots ----------------------------------------------------------------------
 
-data_india_raw <- lapply(1:2, function(i){
+data_india_raw <- data_india_raw <- lapply(1:2, function(i){
     read_json(paste0("https://api.covid19india.org/raw_data",i,".json"),simplifyVector = TRUE)$raw_data %>%
         transmute(dateannounced,
-               detectedstate,
-               detecteddistrict,
-               numcases = 1)
+                  detectedstate,
+                  detecteddistrict,
+                  numcases = 1)
 }) %>%
-    Reduce(f = rbind, x = .) %>% 
-    rbind(read_json(paste0("https://api.covid19india.org/raw_data3.json"),simplifyVector = TRUE)$raw_data %>%
-              filter(currentstatus == "Hospitalized") %>% 
-              transmute(dateannounced,
-                        detectedstate,
-                        detecteddistrict,
-                        numcases) ) %>% 
+    Reduce(f = rbind, x = .) %>%
+    rbind(lapply(3:4, function(i){
+        read_json(paste0("https://api.covid19india.org/raw_data",i,".json"),simplifyVector = TRUE)$raw_data %>%
+            filter(currentstatus == "Hospitalized") %>%
+            transmute(dateannounced,
+                      detectedstate,
+                      detecteddistrict,
+                      numcases)
+    }) %>%  Reduce(f = rbind, x = .)) %>%
     mutate(dateannounced = as.Date(dateannounced, "%d/%m/%y"),
            numcases = as.integer(numcases))  %>%
     filter(!is.na(dateannounced))
@@ -89,6 +90,8 @@ data_india_state <- unique(data_india_raw$dateannounced) %>% lapply(function(d){
         mutate(date = d)
 }) %>%  Reduce(f = rbind)
 
+cat("https://api.covid19india.org/raw_data[1-4]json")
+
 
 # # population data ---------------------------------------------------------
 # 
@@ -102,3 +105,4 @@ data_india_state <- unique(data_india_raw$dateannounced) %>% lapply(function(d){
 #         
 #     }
 
+cat("All done")
